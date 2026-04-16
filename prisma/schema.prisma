@@ -1,0 +1,561 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────
+
+enum UserRole {
+  super_admin
+  front_office
+  lab_manager
+  lab_technician
+  business_admin
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+enum BranchType {
+  lab
+  collecting_center
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum BloodGroup {
+  A_PLUS   @map("A+")
+  A_MINUS  @map("A-")
+  B_PLUS   @map("B+")
+  B_MINUS  @map("B-")
+  AB_PLUS  @map("AB+")
+  AB_MINUS @map("AB-")
+  O_PLUS   @map("O+")
+  O_MINUS  @map("O-")
+}
+
+enum PatientFlag {
+  new
+  regular
+  vip
+  blacklisted
+}
+
+enum DriverStatus {
+  active
+  inactive
+  suspended
+}
+
+enum VehicleType {
+  van
+  car
+}
+
+enum VehicleStatus {
+  available
+  busy
+  offline
+}
+
+enum SampleType {
+  blood
+  urine
+}
+
+enum JobStatus {
+  pending
+  queued
+  accepted
+  allocated
+  dispatched
+  en_route
+  arrived
+  collecting
+  collected
+  returning
+  at_center
+  sent_to_lab
+  lab_received
+  processing
+  report_ready
+  report_reviewed
+  completed
+  failed
+  rejected
+  cancelled
+}
+
+enum Urgency {
+  normal
+  urgent
+}
+
+enum CancelledBy {
+  customer
+  branch
+  super_admin
+}
+
+enum TestStatus {
+  pending
+  collected
+  failed
+  received_at_lab
+  processing
+  complete
+  recollection_required
+}
+
+enum TimelineStepStatus {
+  done
+  active
+  pending
+  failed
+}
+
+enum EscalationCategory {
+  vehicle_breakdown
+  driver_issue
+  sample_issue
+  equipment_issue
+  staff_shortage
+  customer_complaint
+  system_error
+  other
+}
+
+enum EscalationUrgency {
+  normal
+  urgent
+  critical
+}
+
+enum EscalationStatus {
+  open
+  acknowledged
+  resolved
+}
+
+enum NotificationType {
+  new_request
+  rejection
+  cancellation
+  escalation
+  job_completed
+  system_alert
+  driver_issue
+  lab_issue
+  critical_value
+  report_ready
+  broadcast
+}
+
+enum CollectionFailReason {
+  patient_refused
+  patient_not_home
+  fasting_not_met
+  vein_not_found
+  equipment_issue
+}
+
+// ─── Models ───────────────────────────────────────────────
+
+model Branch {
+  id               String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name             String
+  type             BranchType
+  address          String
+  latitude         Decimal    @db.Decimal(10, 7)
+  longitude        Decimal    @db.Decimal(10, 7)
+  branchCode       String?    @unique @map("branch_code")
+  phone            String?
+  email            String?
+  serviceRadiusKm  Int?       @map("service_radius_km")
+  maxDailyCapacity Int?       @map("max_daily_capacity")
+  managerName      String?    @map("manager_name")
+  managerPhone     String?    @map("manager_phone")
+  defaultLabId     String?    @map("default_lab_id") @db.Uuid
+  operatingStart   String     @default("06:30") @map("operating_start")
+  operatingEnd     String     @default("16:00") @map("operating_end")
+  isOnline         Boolean    @default(true) @map("is_online")
+  province         String?
+  district         String?
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  deletedAt        DateTime?  @map("deleted_at")
+
+  defaultLab       Branch?    @relation("BranchToDefaultLab", fields: [defaultLabId], references: [id])
+  collectingCenters Branch[]  @relation("BranchToDefaultLab")
+  users            User[]
+  vehicles         Vehicle[]
+  drivers          Driver[]
+  jobRequestBranch JobRequest[] @relation("JobRequestBranch")
+  jobRequestLab    JobRequest[] @relation("JobRequestLab")
+
+  @@map("branches")
+}
+
+model User {
+  id                String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  staffId           String?    @unique @map("staff_id")
+  email             String     @unique
+  passwordHash      String     @map("password_hash")
+  fullName          String     @map("full_name")
+  nic               String?    @unique
+  phone             String?
+  avatarUrl         String?    @map("avatar_url")
+  role              UserRole
+  roleTitle         String?    @map("role_title")
+  department        String?
+  qualification     String?
+  notes             String?    @db.Text
+  branchId          String     @map("branch_id") @db.Uuid
+  status            UserStatus @default(active)
+  lastLoginAt       DateTime?  @map("last_login_at")
+  twoFactorEnabled  Boolean    @default(false) @map("two_factor_enabled")
+  failedLoginCount  Int        @default(0) @map("failed_login_count")
+  lockedUntil       DateTime?  @map("locked_until")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  deletedAt         DateTime?  @map("deleted_at")
+
+  branch            Branch     @relation(fields: [branchId], references: [id])
+  auditLogs         AuditLog[]
+  escalationsBy     Escalation[] @relation("EscalatedBy")
+  escalationsResolved Escalation[] @relation("ResolvedBy")
+  notifications     Notification[] @relation("NotificationUser")
+  notificationsSent Notification[] @relation("NotificationSentBy")
+  jobReviewed       JobRequest[] @relation("JobReviewer")
+  timelineSteps     JobTimeline[]
+  settings          Setting[]
+
+  @@map("users")
+}
+
+model Driver {
+  id               String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  fullName         String       @map("full_name")
+  nic              String       @unique
+  licenseNumber    String       @unique @map("license_number")
+  licenseExpiry    DateTime     @map("license_expiry")
+  phone            String
+  email            String?
+  address          String?      @db.Text
+  branchId         String       @map("branch_id") @db.Uuid
+  status           DriverStatus @default(active)
+  licenseDocUrl    String?      @map("license_doc_url")
+  nicFrontUrl      String?      @map("nic_front_url")
+  nicBackUrl       String?      @map("nic_back_url")
+  avatarUrl        String?      @map("avatar_url")
+  notes            String?      @db.Text
+  isAvailable      Boolean      @default(true) @map("is_available")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  deletedAt        DateTime?    @map("deleted_at")
+
+  branch           Branch       @relation(fields: [branchId], references: [id])
+  vehicles         Vehicle[]    @relation("CurrentDriver")
+  jobRequests      JobRequest[]
+  locations        DriverLocation[]
+  driverSettings   DriverSettings?
+
+  @@map("drivers")
+}
+
+model Vehicle {
+  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  plateNumber       String        @unique @map("plate_number")
+  chassisNumber     String        @unique @map("chassis_number")
+  vehicleIdCode     String?       @unique @map("vehicle_id_code")
+  makeModel         String?       @map("make_model")
+  yearOfManufacture Int?          @map("year_of_manufacture")
+  color             String?
+  vehicleType       VehicleType   @map("vehicle_type")
+  branchId          String        @map("branch_id") @db.Uuid
+  status            VehicleStatus @default(available)
+  currentDriverId   String?       @map("current_driver_id") @db.Uuid
+  notes             String?       @db.Text
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  deletedAt         DateTime?     @map("deleted_at")
+
+  branch            Branch        @relation(fields: [branchId], references: [id])
+  currentDriver     Driver?       @relation("CurrentDriver", fields: [currentDriverId], references: [id])
+  jobRequests       JobRequest[]
+
+  @@map("vehicles")
+}
+
+model Patient {
+  id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  authUserId          String?    @unique @map("auth_user_id") @db.Uuid
+  uhid                String?    @unique
+  fullName            String     @map("full_name")
+  nic                 String     @unique
+  dateOfBirth         DateTime   @map("date_of_birth")
+  gender              Gender
+  phone               String
+  email               String?
+  bloodGroup          String?    @map("blood_group")
+  nationality         String?    @default("Sri Lankan")
+  address             String     @db.Text
+  city                String?
+  district            String?
+  postalCode          String?    @map("postal_code")
+  landmark            String?
+  emergencyName       String?    @map("emergency_name")
+  emergencyPhone      String?    @map("emergency_phone")
+  flag                PatientFlag @default(new)
+  flagNewUntil        DateTime?  @map("flag_new_until")
+  pendingCharges      Decimal    @default(0) @map("pending_charges") @db.Decimal(10, 2)
+  allergies           String?    @db.Text
+  existingConditions  String?    @map("existing_conditions") @db.Text
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  deletedAt           DateTime?  @map("deleted_at")
+
+  jobRequests         JobRequest[]
+  addresses           CustomerAddress[]
+
+  @@map("patients")
+}
+
+model Test {
+  id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                String
+  code                String     @unique
+  price               Decimal    @db.Decimal(10, 2)
+  turnaroundTime      String?    @map("turnaround_time")
+  sampleType          SampleType @map("sample_type")
+  prescriptionReq     Boolean    @default(false) @map("prescription_req")
+  timeSensitivityHrs  Int?       @map("time_sensitivity_hrs")
+  isActive            Boolean    @default(true) @map("is_active")
+  notes               String?    @db.Text
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  deletedAt           DateTime?  @map("deleted_at")
+
+  jobRequestTests     JobRequestTest[]
+
+  @@map("tests")
+}
+
+model JobRequest {
+  id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  requestNumber       String     @unique @map("request_number")
+  patientId           String     @map("patient_id") @db.Uuid
+  branchId            String?    @map("branch_id") @db.Uuid
+  driverId            String?    @map("driver_id") @db.Uuid
+  vehicleId           String?    @map("vehicle_id") @db.Uuid
+  labId               String?    @map("lab_id") @db.Uuid
+  address             String     @db.Text
+  latitude            Decimal?   @db.Decimal(10, 7)
+  longitude           Decimal?   @db.Decimal(10, 7)
+  scheduledAt         DateTime?  @map("scheduled_at")
+  isScheduled         Boolean    @default(false) @map("is_scheduled")
+  status              JobStatus  @default(pending)
+  urgency             Urgency    @default(normal)
+  basePrice           Decimal?   @map("base_price") @db.Decimal(10, 2)
+  distanceKm          Decimal?   @map("distance_km") @db.Decimal(5, 2)
+  perKmRate           Decimal?   @map("per_km_rate") @db.Decimal(10, 2)
+  transportFee        Decimal    @default(0) @map("transport_fee") @db.Decimal(10, 2)
+  totalPrice          Decimal?   @map("total_price") @db.Decimal(10, 2)
+  isExternalTransport Boolean    @default(false) @map("is_external_transport")
+  prescriptionUrl     String?    @map("prescription_url")
+  rejectionReason     String?    @map("rejection_reason") @db.Text
+  cancelledBy         CancelledBy? @map("cancelled_by")
+  cancellationReason  String?    @map("cancellation_reason") @db.Text
+  lateCancellation    Boolean    @default(false) @map("late_cancellation")
+  lateCancelFee       Decimal    @default(0) @map("late_cancel_fee") @db.Decimal(10, 2)
+  reviewedBy          String?    @map("reviewed_by") @db.Uuid
+  reviewedAt          DateTime?  @map("reviewed_at")
+  reportDownloadedAt  DateTime?  @map("report_downloaded_at")
+  acceptedAt          DateTime?  @map("accepted_at")
+  dispatchedAt        DateTime?  @map("dispatched_at")
+  arrivedAt           DateTime?  @map("arrived_at")
+  collectedAt         DateTime?  @map("collected_at")
+  completedAt         DateTime?  @map("completed_at")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  deletedAt           DateTime?  @map("deleted_at")
+
+  patient             Patient    @relation(fields: [patientId], references: [id])
+  branch              Branch?    @relation("JobRequestBranch", fields: [branchId], references: [id])
+  driver              Driver?    @relation(fields: [driverId], references: [id])
+  vehicle             Vehicle?   @relation(fields: [vehicleId], references: [id])
+  lab                 Branch?    @relation("JobRequestLab", fields: [labId], references: [id])
+  reviewer            User?      @relation("JobReviewer", fields: [reviewedBy], references: [id])
+  tests               JobRequestTest[]
+  timeline            JobTimeline[]
+  escalations         Escalation[]
+  notifications       Notification[]
+  driverLocations     DriverLocation[]
+
+  @@map("job_requests")
+}
+
+model JobRequestTest {
+  id              String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  jobRequestId    String     @map("job_request_id") @db.Uuid
+  testId          String     @map("test_id") @db.Uuid
+  status          TestStatus @default(pending)
+  collectionNotes String?    @map("collection_notes") @db.Text
+  labReceived     Boolean    @default(false) @map("lab_received")
+  labReceivedAt   DateTime?  @map("lab_received_at")
+  reportUrl       String?    @map("report_url")
+  isCriticalValue Boolean    @default(false) @map("is_critical_value")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  jobRequest      JobRequest @relation(fields: [jobRequestId], references: [id])
+  test            Test       @relation(fields: [testId], references: [id])
+
+  @@map("job_request_tests")
+}
+
+model JobTimeline {
+  id           String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  jobRequestId String             @map("job_request_id") @db.Uuid
+  stepNumber   Int                @map("step_number")
+  title        String
+  description  String?            @db.Text
+  status       TimelineStepStatus @default(pending)
+  performedBy  String?            @map("performed_by") @db.Uuid
+  timestamp    DateTime           @default(now())
+  metadata     Json?
+
+  jobRequest   JobRequest @relation(fields: [jobRequestId], references: [id])
+  performer    User?      @relation(fields: [performedBy], references: [id])
+
+  @@index([jobRequestId, stepNumber])
+  @@map("job_timeline")
+}
+
+model Escalation {
+  id               String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  jobRequestId     String?           @map("job_request_id") @db.Uuid
+  escalatedBy      String            @map("escalated_by") @db.Uuid
+  reasonCategory   EscalationCategory @map("reason_category")
+  details          String            @db.Text
+  urgency          EscalationUrgency @default(normal)
+  status           EscalationStatus  @default(open)
+  resolvedBy       String?           @map("resolved_by") @db.Uuid
+  resolutionNotes  String?           @map("resolution_notes") @db.Text
+  createdAt        DateTime          @default(now()) @map("created_at")
+  resolvedAt       DateTime?         @map("resolved_at")
+
+  jobRequest       JobRequest?  @relation(fields: [jobRequestId], references: [id])
+  escalator        User         @relation("EscalatedBy", fields: [escalatedBy], references: [id])
+  resolver         User?        @relation("ResolvedBy", fields: [resolvedBy], references: [id])
+
+  @@map("escalations")
+}
+
+model Notification {
+  id           String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  type         NotificationType
+  title        String
+  message      String           @db.Text
+  jobRequestId String?          @map("job_request_id") @db.Uuid
+  isRead       Boolean          @default(false) @map("is_read")
+  sentBy       String?          @map("sent_by") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  user         User        @relation("NotificationUser", fields: [userId], references: [id])
+  sender       User?       @relation("NotificationSentBy", fields: [sentBy], references: [id])
+  jobRequest   JobRequest? @relation(fields: [jobRequestId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  action     String
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id") @db.Uuid
+  details    Json?
+  ipAddress  String?   @map("ip_address")
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user       User @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}
+
+model Setting {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key         String   @unique
+  value       String   @db.Text
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  updater     User?    @relation(fields: [updatedBy], references: [id])
+
+  @@map("settings")
+}
+
+model CustomerAddress {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  label     String
+  address   String   @db.Text
+  latitude  Decimal  @db.Decimal(10, 7)
+  longitude Decimal  @db.Decimal(10, 7)
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  patient   Patient  @relation(fields: [patientId], references: [id])
+
+  @@map("customer_addresses")
+}
+
+model DriverSettings {
+  id             String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId       String  @unique @map("driver_id") @db.Uuid
+  pushEnabled    Boolean @default(true) @map("push_enabled")
+  soundEnabled   Boolean @default(true) @map("sound_enabled")
+  vibrationEnabled Boolean @default(true) @map("vibration_enabled")
+  mapsPreference String  @default("google") @map("maps_preference")
+
+  driver         Driver  @relation(fields: [driverId], references: [id])
+
+  @@map("driver_settings")
+}
+
+model DriverLocation {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId     String   @map("driver_id") @db.Uuid
+  jobRequestId String?  @map("job_request_id") @db.Uuid
+  latitude     Decimal  @db.Decimal(10, 7)
+  longitude    Decimal  @db.Decimal(10, 7)
+  recordedAt   DateTime @default(now()) @map("recorded_at")
+
+  driver       Driver      @relation(fields: [driverId], references: [id])
+  jobRequest   JobRequest? @relation(fields: [jobRequestId], references: [id])
+
+  @@map("driver_locations")
+}
