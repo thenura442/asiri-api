@@ -28,10 +28,31 @@ import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 
+//GEO
+import nominatimConfig from './config/nominatim.config';
+
 // Feature modules — add one by one as you build them
 import { AuthModule } from './modules/auth/auth.module';
 import { BranchesModule } from './modules/branches/branches.module';
-import { UsersModule } from './modules/users/users.module';
+import { UsersModule } from '@modules/users/users.module';
+import { VehiclesModule } from './modules/vehicles/vehicles.module';
+import { DriversModule } from './modules/drivers/drivers.module';
+import { PatientsModule } from './modules/patients/patients.module';
+import { TestsModule } from './modules/tests/tests.module';
+import { JobRequestsModule } from './modules/job-requests/job-requests.module';
+import { LabModule } from './modules/lab/lab.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { ProfileModule } from './modules/profile/profile.module';
+import { EscalationsModule } from './modules/escalations/escalations.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { EventsModule } from './modules/events/events.module';
+import { GeoModule } from './modules/geo/geo.module';
+import { BookingModule } from './modules/booking/booking.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { DriverAppModule } from './modules/driver-app/driver-app.module';
 
 @Module({
   imports: [
@@ -46,6 +67,7 @@ import { UsersModule } from './modules/users/users.module';
         firebaseConfig,
         osrmConfig,
         googleOAuthConfig,
+        nominatimConfig,
       ],
     }),
 
@@ -70,10 +92,26 @@ import { UsersModule } from './modules/users/users.module';
 
     // Feature modules
     AuthModule,
-
     BranchesModule,
-
     UsersModule,
+    VehiclesModule,
+    DriversModule,
+    PatientsModule,
+    TestsModule,
+    JobRequestsModule,
+    LabModule,
+    NotificationsModule,
+    UploadsModule,
+    SettingsModule,
+    ProfileModule,
+    EscalationsModule,
+    DashboardModule,
+    SchedulerModule,
+    EventsModule,
+    GeoModule,
+    BookingModule,
+    CustomerModule,
+    DriverAppModule,
   ],
   providers: [
     // Global rate limiting

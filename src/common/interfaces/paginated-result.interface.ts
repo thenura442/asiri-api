@@ -7,5 +7,6 @@ export interface PaginatedResult<T> {
     totalPages: number;
     hasNext: boolean;
     hasPrev: boolean;
+    [key: string]: any; //
   };
 }

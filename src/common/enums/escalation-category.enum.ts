@@ -6,5 +6,8 @@ export enum EscalationCategory {
   STAFF_SHORTAGE = 'staff_shortage',
   CUSTOMER_COMPLAINT = 'customer_complaint',
   SYSTEM_ERROR = 'system_error',
+  TRAFFIC_ACCIDENT = 'traffic_accident',
+  MEDICAL_EMERGENCY = 'medical_emergency',
+  SAFETY_CONCERN = 'safety_concern',
   OTHER = 'other',
 }
