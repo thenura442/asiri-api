@@ -296,6 +296,13 @@ model Vehicle {
   status            VehicleStatus @default(available)
   currentDriverId   String?       @map("current_driver_id") @db.Uuid
   notes             String?       @db.Text
+  insuranceProvider String?       @map("insurance_provider")
+  insuranceExpiry   DateTime?     @map("insurance_expiry") @db.Date
+  revenueLicExpiry  DateTime?     @map("revenue_lic_expiry") @db.Date
+  lastServiceDate   DateTime?     @map("last_service_date") @db.Date
+  mileageKm         Int?          @map("mileage_km")
+  nextServiceKm     Int?          @map("next_service_km")
+  insuranceCertUrl  String?       @map("insurance_cert_url")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
   deletedAt         DateTime?     @map("deleted_at")

@@ -14,8 +14,17 @@ import { PaginatedResult } from '../../common/interfaces/paginated-result.interf
 export class VehiclesService {
   constructor(private prisma: PrismaService) {}
 
+  // Converts ISO date strings → Date objects for Prisma
+  private buildData(dto: CreateVehicleDto | UpdateVehicleDto) {
+    const { insuranceExpiry, revenueLicExpiry, lastServiceDate, ...rest } = dto as any;
+    const data: any = { ...rest };
+    if (insuranceExpiry) data.insuranceExpiry = new Date(insuranceExpiry);
+    if (revenueLicExpiry) data.revenueLicExpiry = new Date(revenueLicExpiry);
+    if (lastServiceDate) data.lastServiceDate = new Date(lastServiceDate);
+    return data;
+  }
+
   async create(dto: CreateVehicleDto) {
-    // Vehicles only at lab-type branches
     const branch = await this.prisma.branch.findFirst({
       where: { id: dto.branchId },
     });
@@ -27,7 +36,7 @@ export class VehiclesService {
     }
 
     return this.prisma.vehicle.create({
-      data: dto,
+      data: this.buildData(dto),
       include: {
         branch: { select: { id: true, name: true } },
         currentDriver: { select: { id: true, fullName: true } },
@@ -47,7 +56,6 @@ export class VehiclesService {
     if (dto.status) where.status = dto.status;
     if (dto.vehicleType) where.vehicleType = dto.vehicleType;
     if (dto.branchId) where.branchId = dto.branchId;
-    // Non-SA users only see their branch vehicles
     if (!isSuperAdmin && userBranchId) where.branchId = userBranchId;
     if (dto.search) {
       where.OR = [
@@ -58,7 +66,7 @@ export class VehiclesService {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [data, total, available, busy, offline] = await Promise.all([
       this.prisma.vehicle.findMany({
         where,
         skip,
@@ -70,10 +78,6 @@ export class VehiclesService {
         },
       }),
       this.prisma.vehicle.count({ where }),
-    ]);
-
-    // Stats
-    const [available, busy, offline] = await Promise.all([
       this.prisma.vehicle.count({ where: { ...where, status: 'available' } }),
       this.prisma.vehicle.count({ where: { ...where, status: 'busy' } }),
       this.prisma.vehicle.count({ where: { ...where, status: 'offline' } }),
@@ -109,7 +113,7 @@ export class VehiclesService {
     await this.findOne(id);
     return this.prisma.vehicle.update({
       where: { id },
-      data: dto,
+      data: this.buildData(dto),
       include: {
         branch: { select: { id: true, name: true } },
         currentDriver: { select: { id: true, fullName: true } },
