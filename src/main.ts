@@ -17,16 +17,16 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: [
-      'https://asiri-mobile-admin.netlify.app',
-      'http://localhost:4200',
-      'http://localhost:8100',
-      'capacitor://localhost',
-      'http://localhost',
-    ],
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Idempotency-Key'],
-    credentials: true,
+    // origin: [
+    //   'https://asiri-mobile-admin.netlify.app',
+    //   'http://localhost:4200',
+    //   'http://localhost:8100',
+    //   'capacitor://localhost',
+    //   'http://localhost',
+    // ],
+    // methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    // allowedHeaders: ['Authorization', 'Content-Type', 'X-Idempotency-Key'],
+    // credentials: true,
   });
 
   // Global prefix
