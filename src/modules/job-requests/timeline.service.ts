@@ -55,8 +55,7 @@ export class TimelineService {
       data: {
         status: 'done' as TimelineStepStatus,
         timestamp: new Date(),
-        performedBy,
-        metadata,
+        performedBy: null,
       },
     });
 
@@ -80,7 +79,7 @@ export class TimelineService {
       data: {
         status: 'failed' as TimelineStepStatus,
         timestamp: new Date(),
-        performedBy,
+        performedBy: null,
         metadata: { reason },
       },
     });

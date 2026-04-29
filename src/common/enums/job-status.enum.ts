@@ -19,4 +19,6 @@ export enum JobStatus {
   FAILED = 'failed',
   REJECTED = 'rejected',
   CANCELLED = 'cancelled',
+  PAYMENT_COLLECTED = 'payment_collected',
+  HARD_COPY_READY = 'hard_copy_ready',
 }

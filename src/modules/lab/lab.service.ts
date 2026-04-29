@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 import { ReceiveSamplesDto } from './dto/receive-samples.dto';
@@ -10,22 +9,44 @@ import { UploadReportDto } from './dto/upload-report.dto';
 import { FilterLabDto } from './dto/filter-lab.dto';
 import { UserRole } from '../../common/enums/role.enum';
 
+const LAB_STATUS_STEP_MAP: Record<string, number> = {
+  lab_received:    13,
+  processing:      14,
+  report_ready:    15,
+  report_reviewed: 16,
+};
+
 @Injectable()
 export class LabService {
   constructor(private prisma: PrismaService) {}
+
+  private async updateTimeline(jobId: string, status: string): Promise<void> {
+    const currentStep = LAB_STATUS_STEP_MAP[status];
+    if (currentStep === undefined) return;
+
+    await this.prisma.jobTimeline.updateMany({
+      where: { jobRequestId: jobId, stepNumber: { lt: currentStep } },
+      data:  { status: 'done' },
+    });
+    await this.prisma.jobTimeline.updateMany({
+      where: { jobRequestId: jobId, stepNumber: currentStep },
+      data:  { status: 'active', timestamp: new Date() },
+    });
+    await this.prisma.jobTimeline.updateMany({
+      where: { jobRequestId: jobId, stepNumber: { gt: currentStep } },
+      data:  { status: 'pending' },  // ← timestamp removed
+    });
+  }
 
   async getApprovals(dto: FilterLabDto, user: any) {
     const { page = 1, limit = 10 } = dto;
     const skip = (page - 1) * limit;
 
     const where: any = {
-      status: { in: ['lab_received', 'processing', 'report_ready', 'report_reviewed'] },
+      status: { in: ['sent_to_lab', 'lab_received', 'processing', 'report_ready', 'report_reviewed'] },
     };
 
-    // LM and LT only see their lab's jobs
-    if (
-      [UserRole.LAB_MANAGER, UserRole.LAB_TECHNICIAN].includes(user.role)
-    ) {
+    if ([UserRole.LAB_MANAGER, UserRole.LAB_TECHNICIAN].includes(user.role)) {
       where.labId = user.branchId;
     } else if (dto.labId) {
       where.labId = dto.labId;
@@ -47,7 +68,7 @@ export class LabService {
         orderBy: { createdAt: 'desc' },
         include: {
           patient: { select: { id: true, fullName: true, uhid: true } },
-          lab: { select: { id: true, name: true } },
+          lab:     { select: { id: true, name: true } },
           tests: {
             include: { test: { select: { id: true, name: true, code: true } } },
           },
@@ -73,21 +94,21 @@ export class LabService {
     });
     if (!job) throw new NotFoundException('Job request not found');
 
-    // Mark selected tests as received
     await this.prisma.jobRequestTest.updateMany({
       where: { id: { in: dto.jobRequestTestIds }, jobRequestId: jobId },
       data: {
-        status: 'received_at_lab',
-        labReceived: true,
+        status:        'received_at_lab',
+        labReceived:   true,
         labReceivedAt: new Date(),
       },
     });
 
-    // Update job status to lab_received
     await this.prisma.jobRequest.update({
       where: { id: jobId },
-      data: { status: 'lab_received' },
+      data:  { status: 'lab_received' },
     });
+
+    await this.updateTimeline(jobId, 'lab_received');
 
     return { message: 'Samples marked as received' };
   }
@@ -101,7 +122,7 @@ export class LabService {
     return this.prisma.jobRequestTest.update({
       where: { id: dto.jobRequestTestId },
       data: {
-        status: 'failed',
+        status:          'failed',
         collectionNotes: dto.notes,
       },
     });
@@ -116,13 +137,12 @@ export class LabService {
     const updated = await this.prisma.jobRequestTest.update({
       where: { id: dto.jobRequestTestId },
       data: {
-        reportUrl: dto.reportUrl,
-        status: 'complete',
+        reportUrl:       dto.reportUrl,
+        status:          'complete',
         isCriticalValue: dto.isCriticalValue ?? false,
       },
     });
 
-    // Check if all tests are complete
     const pendingTests = await this.prisma.jobRequestTest.count({
       where: { jobRequestId: jobId, status: { notIn: ['complete', 'failed'] } },
     });
@@ -130,8 +150,9 @@ export class LabService {
     if (pendingTests === 0) {
       await this.prisma.jobRequest.update({
         where: { id: jobId },
-        data: { status: 'report_ready' },
+        data:  { status: 'report_ready' },
       });
+      await this.updateTimeline(jobId, 'report_ready');
     }
 
     return updated;
@@ -143,13 +164,16 @@ export class LabService {
     });
     if (!job) throw new NotFoundException('Job not found or not in report_ready status');
 
-    return this.prisma.jobRequest.update({
+    const result = await this.prisma.jobRequest.update({
       where: { id: jobId },
       data: {
-        status: 'report_reviewed',
-        reviewedBy: userId,
+        status:     'report_reviewed',
         reviewedAt: new Date(),
       },
     });
+
+    await this.updateTimeline(jobId, 'report_reviewed');
+
+    return result;
   }
 }

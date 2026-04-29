@@ -10,12 +10,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { SupabaseService } from '../../core/supabase/supabase.service';
 import { CustomerRegisterDto } from './dto/customer-register.dto';
 import { CustomerLoginDto } from './dto/customer-login.dto';
-import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { ResendOtpDto } from './dto/resend-otp.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
-
-// In-memory OTP store (use Redis in production)
-const otpStore = new Map<string, { code: string; expiresAt: Date }>();
 
 @Injectable()
 export class CustomerAuthService {
@@ -44,86 +39,68 @@ export class CustomerAuthService {
       where: { phone: dto.phone },
     });
     if (existingPhone) {
-      throw new ConflictException(
-        'A patient with this phone number already exists',
-      );
+      throw new ConflictException('A patient with this phone number already exists');
     }
 
-    // Create Supabase Auth user
     // Use phone-derived email as Supabase identifier
     const supabaseEmail = `${dto.phone.replace('+', '')}@customer.asiri.lk`;
 
     const { data: authData, error: authError } =
       await this.supabase.adminClient.auth.admin.createUser({
-        email: supabaseEmail,
-        password: dto.password,
+        email:         supabaseEmail,
+        password:      dto.password,
         email_confirm: true,
-        phone: dto.phone,
+        phone:         dto.phone,
       });
 
     if (authError) {
-      if (authError.message.includes('already registered')) {
+      if (
+        authError.message.includes('already registered') ||
+        authError.message.includes('already been registered') ||
+        authError.message.includes('email address has already')
+      ) {
         throw new ConflictException('Phone number already registered');
       }
       throw new BadRequestException(authError.message);
     }
 
-    // Set flagNewUntil to 2 weeks from now
     const flagNewUntil = new Date();
     flagNewUntil.setDate(flagNewUntil.getDate() + 14);
 
-    // Create patient record
     const patient = await this.prisma.patient.create({
       data: {
-        authUserId: authData.user.id,
-        fullName: `${dto.firstName} ${dto.lastName}`,
-        nic: dto.nic,
-        dateOfBirth: new Date(dto.dateOfBirth),
-        gender: dto.gender,
-        phone: dto.phone,
-        email: dto.email,
-        bloodGroup: dto.bloodGroup,
-        address: dto.address,
-        emergencyName: dto.emergencyContactName,
-        emergencyPhone: dto.emergencyContactPhone,
-        flag: 'new',
+        authUserId:          authData.user.id,
+        fullName:            `${dto.firstName} ${dto.lastName}`,
+        nic:                 dto.nic,
+        dateOfBirth:         new Date(dto.dateOfBirth),
+        gender:              dto.gender,
+        phone:               dto.phone,
+        email:               dto.email               ?? null,
+        bloodGroup:          dto.bloodGroup           ?? null,
+        address:             dto.address,
+        city:                dto.city                ?? null,
+        district:            dto.district             ?? null,
+        emergencyName:       dto.emergencyContactName  ?? null,
+        emergencyPhone:      dto.emergencyContactPhone ?? null,
+        flag:                'new',
         flagNewUntil,
       },
     });
 
-    // Generate and store OTP for phone verification
-    const otp = this.generateOtp();
-    otpStore.set(dto.phone, {
-      code: otp,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min expiry
-    });
+    this.logger.log(`Patient registered: ${patient.phone}`);
 
-    this.logger.log(`OTP for ${dto.phone}: ${otp}`); // In production — send via SMS
-
-    // Sign in to get tokens
-    const { data: signInData } =
-      await this.supabase.client.auth.signInWithPassword({
-        email: supabaseEmail,
-        password: dto.password,
-      });
-
+    // Return minimal response — frontend navigates to login
     return {
-      accessToken: signInData.session?.access_token,
-      refreshToken: signInData.session?.refresh_token,
-      requiresOtpVerification: true,
+      message: 'Registration successful. Please sign in.',
       user: {
-        id: patient.id,
+        id:       patient.id,
         fullName: patient.fullName,
-        phone: patient.phone,
-        email: patient.email,
-        avatarUrl: null,
-        flag: patient.flag,
+        phone:    patient.phone,
       },
     };
   }
 
   async login(dto: CustomerLoginDto) {
-    // Find patient by phone
     const patient = await this.prisma.patient.findFirst({
       where: { phone: dto.phone },
     });
@@ -136,86 +113,41 @@ export class CustomerAuthService {
     const supabaseEmail = `${dto.phone.replace('+', '')}@customer.asiri.lk`;
 
     const { data, error } = await this.supabase.client.auth.signInWithPassword({
-      email: supabaseEmail,
+      email:    supabaseEmail,
       password: dto.password,
     });
 
     if (error) throw new UnauthorizedException('Invalid credentials');
 
     return {
-      accessToken: data.session?.access_token,
-      refreshToken: data.session?.refresh_token,
-      requiresTwoFactor: false,
+      accessToken:  data.session?.access_token  ?? null,
+      refreshToken: data.session?.refresh_token ?? null,
+      expiresIn:    data.session?.expires_in    ?? 3600,
+      requires2fa:  false,
       user: {
-        id: patient.id,
-        fullName: patient.fullName,
-        phone: patient.phone,
-        email: patient.email,
+        id:        patient.id,
+        fullName:  patient.fullName,
+        phone:     patient.phone,
+        email:     patient.email  ?? null,
         avatarUrl: null,
-        flag: patient.flag,
+        flag:      patient.flag,
+        role:      'customer' as const,
       },
     };
   }
 
-  async verifyOtp(dto: VerifyOtpDto) {
-    const stored = otpStore.get(dto.phone);
-
-    if (!stored) {
-      throw new BadRequestException('No OTP found for this phone number');
-    }
-    if (stored.expiresAt < new Date()) {
-      otpStore.delete(dto.phone);
-      throw new BadRequestException('OTP has expired. Please request a new one.');
-    }
-    if (stored.code !== dto.code) {
-      throw new BadRequestException('Invalid OTP code');
-    }
-
-    otpStore.delete(dto.phone);
-
-    // Find patient
-    const patient = await this.prisma.patient.findFirst({
-      where: { phone: dto.phone },
-    });
-
-    return {
-      verified: true,
-      patientId: patient?.id,
-    };
-  }
-
-  async resendOtp(dto: ResendOtpDto) {
-    const patient = await this.prisma.patient.findFirst({
-      where: { phone: dto.phone },
-    });
-    if (!patient) throw new BadRequestException('Phone number not registered');
-
-    const otp = this.generateOtp();
-    otpStore.set(dto.phone, {
-      code: otp,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-    });
-
-    this.logger.log(`Resend OTP for ${dto.phone}: ${otp}`);
-    // In production — send via SmsService
-
-    return { message: 'OTP sent successfully' };
-  }
-
   async googleAuth(dto: GoogleAuthDto) {
-    // Verify Google ID token via Supabase
     const { data, error } = await this.supabase.client.auth.signInWithIdToken({
       provider: 'google',
-      token: dto.idToken,
+      token:    dto.idToken,
     });
 
     if (error) throw new UnauthorizedException('Invalid Google token');
 
     const googleUser = data.user;
-    const email = googleUser?.email;
-    const fullName = googleUser?.user_metadata?.full_name ?? '';
+    const email      = googleUser?.email;
+    const fullName   = googleUser?.user_metadata?.full_name ?? '';
 
-    // Check if patient already exists
     let patient = await this.prisma.patient.findFirst({
       where: { authUserId: googleUser?.id },
     });
@@ -225,37 +157,39 @@ export class CustomerAuthService {
     }
 
     if (!patient) {
-      // Create new patient from Google profile
       const flagNewUntil = new Date();
       flagNewUntil.setDate(flagNewUntil.getDate() + 14);
 
       patient = await this.prisma.patient.create({
         data: {
-          authUserId: googleUser?.id,
-          fullName: fullName || 'Google User',
-          nic: `GOOGLE-${googleUser?.id?.slice(0, 8)}`, // Placeholder
-          dateOfBirth: new Date('2000-01-01'), // Placeholder — user must update
-          gender: 'other',
-          phone: googleUser?.phone ?? '',
-          email,
-          address: '',
-          flag: 'new',
+          authUserId:  googleUser?.id ?? '',
+          fullName:    fullName || 'Google User',
+          nic:         `GOOGLE-${googleUser?.id?.slice(0, 8)}`,
+          dateOfBirth: new Date('2000-01-01'),
+          gender:      'other',
+          phone:       googleUser?.phone ?? '',
+          email:       email             ?? null,
+          address:     '',
+          flag:        'new',
           flagNewUntil,
         },
       });
     }
 
     return {
-      accessToken: data.session?.access_token,
-      refreshToken: data.session?.refresh_token,
-      isNewUser: !patient,
+      accessToken:  data.session?.access_token  ?? null,
+      refreshToken: data.session?.refresh_token ?? null,
+      expiresIn:    data.session?.expires_in    ?? 3600,
+      requires2fa:  false,
+      isNewUser:    !patient,
       user: {
-        id: patient.id,
-        fullName: patient.fullName,
-        phone: patient.phone,
-        email: patient.email,
+        id:        patient.id,
+        fullName:  patient.fullName,
+        phone:     patient.phone,
+        email:     patient.email  ?? null,
         avatarUrl: googleUser?.user_metadata?.avatar_url ?? null,
-        flag: patient.flag,
+        flag:      patient.flag,
+        role:      'customer' as const,
       },
     };
   }
@@ -268,19 +202,15 @@ export class CustomerAuthService {
     const patient = await this.prisma.patient.findFirst({
       where: { authUserId: user.id },
     });
-
     if (!patient) throw new UnauthorizedException('Patient not found');
 
     return {
-      id: patient.id,
-      fullName: patient.fullName,
-      phone: patient.phone,
-      email: patient.email,
-      flag: patient.flag,
+      id:        patient.id,
+      fullName:  patient.fullName,
+      phone:     patient.phone,
+      email:     patient.email ?? null,
+      flag:      patient.flag,
+      role:      'customer' as const,
     };
-  }
-
-  private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
   }
 }

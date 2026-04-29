@@ -5,39 +5,64 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateDriverDto {
-  @ApiProperty({ example: 'Nimal Perera' })
+  @ApiProperty()
   @IsString()
   fullName!: string;
 
-  @ApiProperty({ example: '200123456789' })
+  @ApiProperty()
   @IsString()
   nic!: string;
 
-  @ApiProperty({ example: 'B1234567' })
+  @ApiProperty()
   @IsString()
   licenseNumber!: string;
 
-  @ApiProperty({ example: '2027-12-31' })
+  @ApiProperty()
   @IsDateString()
   licenseExpiry!: string;
 
-  @ApiProperty({ example: '+94 77 123 4567' })
+  @ApiProperty()
   @IsString()
   phone!: string;
 
-  @ApiPropertyOptional({ example: 'nimal@asiri-labs.lk' })
+  @ApiProperty()
+  @IsUUID()
+  branchId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  staffId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  licensePhotoUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  idFrontUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  idBackUrl?: string;
+
+  @ApiPropertyOptional()
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ example: '45, Main Street, Colombo 10' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   address?: string;
-
-  @ApiProperty({ example: 'uuid-of-lab-branch' })
-  @IsUUID()
-  branchId!: string;
 
   @ApiPropertyOptional()
   @IsOptional()

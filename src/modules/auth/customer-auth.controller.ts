@@ -32,22 +32,6 @@ export class CustomerAuthController {
   }
 
   @Public()
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify phone OTP after registration' })
-  verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.customerAuthService.verifyOtp(dto);
-  }
-
-  @Public()
-  @Post('resend-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Resend OTP to phone' })
-  resendOtp(@Body() dto: ResendOtpDto) {
-    return this.customerAuthService.resendOtp(dto);
-  }
-
-  @Public()
   @Post('google')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Google OAuth sign-in' })

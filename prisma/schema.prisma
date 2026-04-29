@@ -254,31 +254,34 @@ model User {
 }
 
 model Driver {
-  id               String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  fullName         String       @map("full_name")
-  nic              String       @unique
-  licenseNumber    String       @unique @map("license_number")
-  licenseExpiry    DateTime     @map("license_expiry")
-  phone            String
-  email            String?
-  address          String?      @db.Text
-  branchId         String       @map("branch_id") @db.Uuid
-  status           DriverStatus @default(active)
-  licenseDocUrl    String?      @map("license_doc_url")
-  nicFrontUrl      String?      @map("nic_front_url")
-  nicBackUrl       String?      @map("nic_back_url")
-  avatarUrl        String?      @map("avatar_url")
-  notes            String?      @db.Text
-  isAvailable      Boolean      @default(true) @map("is_available")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
-  deletedAt        DateTime?    @map("deleted_at")
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  authUserId      String?      @unique @map("auth_user_id") @db.Uuid
+  staffId         String?      @unique @map("staff_id")
+  fullName        String       @map("full_name")
+  nic             String       @unique
+  dateOfBirth     DateTime?    @map("date_of_birth") @db.Date
+  phone           String
+  email           String?
+  address         String?      @db.Text
+  branchId        String       @map("branch_id") @db.Uuid
+  licenseNumber   String       @map("license_number")
+  licenseExpiry   DateTime     @map("license_expiry") @db.Date
+  licensePhotoUrl String?      @map("license_photo_url")
+  idFrontUrl      String?      @map("id_front_url")
+  idBackUrl       String?      @map("id_back_url")
+  avatarUrl       String?      @map("avatar_url")
+  status          DriverStatus @default(active)
+  isAvailable     Boolean      @default(false) @map("is_available")
+  notes           String?      @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
 
-  branch           Branch       @relation(fields: [branchId], references: [id])
-  vehicles         Vehicle[]    @relation("CurrentDriver")
-  jobRequests      JobRequest[]
-  locations        DriverLocation[]
-  driverSettings   DriverSettings?
+  branch          Branch         @relation(fields: [branchId], references: [id])
+  vehicles        Vehicle[]      @relation("CurrentDriver")
+  jobRequests     JobRequest[]
+  locations       DriverLocation[]
+  driverSettings  DriverSettings?
 
   @@map("drivers")
 }

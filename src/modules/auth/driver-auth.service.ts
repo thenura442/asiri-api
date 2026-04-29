@@ -35,33 +35,31 @@ export class DriverAuthService {
     if (driver.status === 'inactive') {
       throw new ForbiddenException('Driver account is inactive');
     }
-    if (!driver.email) {
-      throw new UnauthorizedException(
-        'No login credentials set up. Contact your administrator.',
-      );
-    }
+
+    // Use generated email as Supabase identifier — same pattern as customer auth
+    const supabaseEmail = `${dto.phone.replace('+', '')}@driver.asiri.lk`;
 
     const { data, error } = await this.supabase.client.auth.signInWithPassword({
-      email: driver.email,
+      email:    supabaseEmail,
       password: dto.password,
     });
 
     if (error) throw new UnauthorizedException('Invalid credentials');
 
     return {
-      accessToken: data.session?.access_token,
-      refreshToken: data.session?.refresh_token,
-      expiresIn: 3600,
+      accessToken:       data.session?.access_token,
+      refreshToken:      data.session?.refresh_token,
+      expiresIn:         3600,
       requiresTwoFactor: false,
       driver: {
-        id: driver.id,
-        fullName: driver.fullName,
-        phone: driver.phone,
-        branchId: driver.branchId,
+        id:         driver.id,
+        fullName:   driver.fullName,
+        phone:      driver.phone,
+        branchId:   driver.branchId,
         branchName: driver.branch.name,
-        status: driver.status,
-        isOnline: driver.isAvailable,
-        avatarUrl: driver.avatarUrl,
+        status:     driver.status,
+        isOnline:   driver.isAvailable,
+        avatarUrl:  driver.avatarUrl,
       },
     };
   }

@@ -73,7 +73,7 @@ import { DriverAppModule } from './modules/driver-app/driver-app.module';
 
     // Rate limiting
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 60000, limit: 100 },
+      { name: 'short', ttl: 60000, limit: 2000 },
       { name: 'login', ttl: 60000, limit: 5 },
     ]),
 
@@ -115,10 +115,10 @@ import { DriverAppModule } from './modules/driver-app/driver-app.module';
   ],
   providers: [
     // Global rate limiting
-    {
-      provide: APP_GUARD,
-      useClass: CustomThrottlerGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: CustomThrottlerGuard,
+    // },
     // Global auth guard
     {
       provide: APP_GUARD,

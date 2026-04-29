@@ -18,7 +18,7 @@ export class PatientsService {
   async create(dto: CreatePatientDto) {
     // Duplicate detection — NIC check (hard block)
     const existingNic = await this.prisma.patient.findFirst({
-      where: { nic: dto.nic },
+      where: { nic: dto.nic, deletedAt: null },
     });
     if (existingNic) {
       throw new BadRequestException({
@@ -32,9 +32,8 @@ export class PatientsService {
       });
     }
 
-    // Duplicate detection — phone + name warning (soft block — 409)
     const existingPhone = await this.prisma.patient.findFirst({
-      where: { phone: dto.phone },
+      where: { phone: dto.phone, deletedAt: null },
     });
     if (existingPhone) {
       throw new BadRequestException({

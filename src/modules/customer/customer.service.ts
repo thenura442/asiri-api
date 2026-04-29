@@ -43,17 +43,18 @@ export class CustomerService {
       },
     });
 
-    // Recent bookings (last 3 completed)
+    // Recent bookings — last 3 of any status
     const recentBookings = await this.prisma.jobRequest.findMany({
-      where: { patientId, status: 'completed' },
+      where: { patientId },
       take: 3,
-      orderBy: { completedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: {
-        id: true,
+        id:            true,
         requestNumber: true,
-        status: true,
-        completedAt: true,
-        totalPrice: true,
+        status:        true,
+        createdAt:     true,
+        completedAt:   true,
+        totalPrice:    true,
         tests: { include: { test: { select: { name: true } } } },
       },
     });
@@ -63,7 +64,7 @@ export class CustomerService {
 
     return {
       profile: {
-        fullName: patient.fullName,
+        fullName:  patient.fullName,
         firstName,
         avatarUrl: null,
       },
@@ -80,25 +81,25 @@ export class CustomerService {
         : null,
       activeBooking: activeBooking
         ? {
-            id: activeBooking.id,
+            id:            activeBooking.id,
             requestNumber: activeBooking.requestNumber,
-            status: activeBooking.status,
-            tests: activeBooking.tests.map((t) => t.test.name),
-            testCount: activeBooking.tests.length,
-            location: '',
-            etaMinutes: null,
-            driverName: activeBooking.driver?.fullName ?? null,
+            status:        activeBooking.status,
+            tests:         activeBooking.tests.map((t) => t.test.name),
+            testCount:     activeBooking.tests.length,
+            location:      '',
+            etaMinutes:    null,
+            driverName:    activeBooking.driver?.fullName ?? null,
             progressSteps: [],
           }
         : null,
       recentBookings: recentBookings.map((b) => ({
-        id: b.id,
+        id:            b.id,
         requestNumber: b.requestNumber,
-        tests: b.tests.map((t) => t.test.name),
-        testCount: b.tests.length,
-        date: b.completedAt?.toISOString() ?? '',
-        status: b.status,
-        totalPrice: Number(b.totalPrice),
+        tests:         b.tests.map((t) => t.test.name),
+        testCount:     b.tests.length,
+        date:          b.completedAt?.toISOString() ?? b.createdAt.toISOString(),
+        status:        b.status,
+        totalPrice:    Number(b.totalPrice),
       })),
     };
   }

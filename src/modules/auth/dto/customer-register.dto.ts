@@ -7,7 +7,7 @@ import { Gender } from '../../../common/enums/gender.enum';
 import { BloodGroup } from '../../../common/enums/blood-group.enum';
 
 export class CustomerRegisterDto {
-  // Step 1 — Personal
+  // ── Step 1 — Personal ────────────────────────────────────────────────────
   @ApiProperty({ example: 'Kamala' })
   @IsString()
   firstName!: string;
@@ -28,36 +28,46 @@ export class CustomerRegisterDto {
   @IsString()
   nic!: string;
 
-  @ApiPropertyOptional({ enum: BloodGroup })
+  @ApiPropertyOptional({ enum: BloodGroup, nullable: true })
   @IsOptional()
   @IsEnum(BloodGroup)
-  bloodGroup?: BloodGroup;
+  bloodGroup?: BloodGroup | null;
 
-  // Step 2 — Contact
+  // ── Step 2 — Contact ─────────────────────────────────────────────────────
   @ApiProperty({ example: '+94771234567' })
   @IsString()
   phone!: string;
 
-  @ApiPropertyOptional({ example: 'kamala@email.com' })
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsEmail()
-  email?: string;
+  email?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  emergencyContactName?: string;
+  emergencyContactName?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  emergencyContactPhone?: string;
+  emergencyContactPhone?: string | null;
 
   @ApiProperty({ example: '45, Main Street, Colombo 10' })
   @IsString()
   address!: string;
 
-  // Step 3 — Security
+  @ApiPropertyOptional({ example: 'Colombo' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'Colombo' })
+  @IsOptional()
+  @IsString()
+  district?: string;
+
+  // ── Step 3 — Security ────────────────────────────────────────────────────
   @ApiProperty({ minLength: 8 })
   @IsString()
   @MinLength(8)
@@ -68,7 +78,12 @@ export class CustomerRegisterDto {
   @IsBoolean()
   enableBiometric?: boolean;
 
-  @ApiProperty({ default: true })
+  @ApiProperty()
   @IsBoolean()
   acceptedTerms!: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  specialInstructions?: string | null;
 }
