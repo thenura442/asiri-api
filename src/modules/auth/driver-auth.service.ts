@@ -86,20 +86,19 @@ export class DriverAuthService {
       throw new BadRequestException('Passwords do not match');
     }
     const driver = await this.prisma.driver.findFirst({ where: { id: driverId } });
-    if (!driver || !driver.email) throw new UnauthorizedException('Driver not found');
+    if (!driver || !driver.authUserId) throw new UnauthorizedException('Driver not found');
+
+    // Use the generated Supabase email (phone-derived) for sign-in verification
+    const supabaseEmail = `${driver.phone.replace('+', '')}@driver.asiri.lk`;
 
     const { error: signInError } = await this.supabase.client.auth.signInWithPassword({
-      email: driver.email,
+      email: supabaseEmail,
       password: currentPassword,
     });
     if (signInError) throw new BadRequestException('Current password is incorrect');
 
-    const { data: authUsers } = await this.supabase.adminClient.auth.admin.listUsers();
-    const authUser = authUsers.users.find((u: any) => u.email === driver.email);
-    if (!authUser) throw new UnauthorizedException('Auth user not found');
-
     const { error } = await this.supabase.adminClient.auth.admin.updateUserById(
-      authUser.id,
+      driver.authUserId,
       { password: newPassword },
     );
     if (error) throw new BadRequestException(error.message);
@@ -110,8 +109,9 @@ export class DriverAuthService {
     const { data: { user }, error } = await this.supabase.client.auth.getUser(token);
     if (error || !user) throw new UnauthorizedException('Invalid session');
 
+    // Look up by authUserId, not email
     const driver = await this.prisma.driver.findFirst({
-      where: { email: user.email },
+      where: { authUserId: user.id },
       include: { branch: { select: { id: true, name: true } } },
     });
     if (!driver) throw new UnauthorizedException('Driver not found');

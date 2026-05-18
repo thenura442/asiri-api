@@ -26,8 +26,9 @@ export class DriverAuthGuard implements CanActivate {
 
     if (error || !user) throw new UnauthorizedException('Invalid or expired token');
 
+    // Look up driver by authUserId (Supabase user ID), not email
     const driver = await this.prisma.driver.findFirst({
-      where: { email: user.email },
+      where: { authUserId: user.id },
       include: { branch: true },
     });
 

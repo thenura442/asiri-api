@@ -70,7 +70,7 @@ export class CustomerAuthService {
     const patient = await this.prisma.patient.create({
       data: {
         authUserId:          authData.user.id,
-        fullName:            `${dto.firstName} ${dto.lastName}`,
+        fullName:            dto.fullName,
         nic:                 dto.nic,
         dateOfBirth:         new Date(dto.dateOfBirth),
         gender:              dto.gender,

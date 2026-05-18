@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
+import { SupabaseService } from '../../core/supabase/supabase.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { FilterPatientsDto } from './dto/filter-patients.dto';
@@ -13,7 +15,12 @@ import { UserRole } from '../../common/enums/role.enum';
 
 @Injectable()
 export class PatientsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(PatientsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private supabase: SupabaseService,
+  ) {}
 
   async create(dto: CreatePatientDto) {
     // Duplicate detection — NIC check (hard block)
@@ -48,6 +55,28 @@ export class PatientsService {
       });
     }
 
+    // ── Create Supabase Auth user so admin-created patient can log in to mobile ──
+    // Temp password = patient's phone number (e.g. +94771234567)
+    const supabaseEmail = `${dto.phone.replace('+', '')}@customer.asiri.lk`;
+    let authUserId: string | null = null;
+
+    const { data: authData, error: authError } =
+      await this.supabase.adminClient.auth.admin.createUser({
+        email:         supabaseEmail,
+        password:      dto.phone, // temp password = phone number
+        email_confirm: true,
+        phone:         dto.phone,
+      });
+
+    if (authError) {
+      this.logger.warn(
+        `Supabase auth creation failed for patient ${dto.phone}: ${authError.message}`,
+      );
+      // Don't block patient creation if auth fails — patient still exists in DB
+    } else {
+      authUserId = authData.user.id;
+    }
+
     // Set flagNewUntil to 2 weeks from now
     const flagNewUntil = new Date();
     flagNewUntil.setDate(flagNewUntil.getDate() + 14);
@@ -55,6 +84,7 @@ export class PatientsService {
     return this.prisma.patient.create({
       data: {
         ...dto,
+        authUserId,
         dateOfBirth: new Date(dto.dateOfBirth),
         flag: 'new',
         flagNewUntil,

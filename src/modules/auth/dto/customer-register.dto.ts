@@ -8,13 +8,9 @@ import { BloodGroup } from '../../../common/enums/blood-group.enum';
 
 export class CustomerRegisterDto {
   // ── Step 1 — Personal ────────────────────────────────────────────────────
-  @ApiProperty({ example: 'Kamala' })
+  @ApiProperty({ example: 'Kamala Silva' })
   @IsString()
-  firstName!: string;
-
-  @ApiProperty({ example: 'Silva' })
-  @IsString()
-  lastName!: string;
+  fullName!: string;
 
   @ApiProperty({ example: '1990-06-15' })
   @IsDateString()
@@ -81,9 +77,4 @@ export class CustomerRegisterDto {
   @ApiProperty()
   @IsBoolean()
   acceptedTerms!: boolean;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @IsString()
-  specialInstructions?: string | null;
 }
